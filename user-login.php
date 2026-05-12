@@ -17,25 +17,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($_POST['action'] === 'login') {
             $user_id = $_POST['user_id'] ?? '';
             $password = $_POST['password'] ?? '';
-            
+
             if (!empty($user_id) && !empty($password)) {
-                $query = "SELECT u_id, name FROM user WHERE u_id = ? AND password = ?";
+                $query = "SELECT u_id, name, password FROM user WHERE u_id = ?";
                 $stmt = $conn->prepare($query);
-                $stmt->bind_param("ss", $user_id, $password);
+                $stmt->bind_param("s", $user_id);
                 $stmt->execute();
                 $result = $stmt->get_result();
-                
+
                 if ($result->num_rows > 0) {
                     $user = $result->fetch_assoc();
-                    setUserSession(ROLE_USER, $user['u_id'], [
-                        'u_id' => $user['u_id'],
-                        'name' => $user['name']
-                    ]);
-                    
-                    $redirect = $_SESSION['redirect_to'] ?? 'index.php';
-                    unset($_SESSION['redirect_to']);
-                    header('Location: ' . $redirect);
-                    exit();
+                    if (password_verify($password, $user['password'])) {
+                        setUserSession(ROLE_USER, $user['u_id'], [
+                            'u_id' => $user['u_id'],
+                            'name' => $user['name']
+                        ]);
+
+                        $redirect = $_SESSION['redirect_to'] ?? 'index.php';
+                        unset($_SESSION['redirect_to']);
+                        header('Location: ' . $redirect);
+                        exit();
+                    } else {
+                        $error = 'Invalid user ID or password';
+                    }
                 } else {
                     $error = 'Invalid user ID or password';
                 }
@@ -48,21 +52,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $name = $_POST['name'] ?? '';
             $contact = $_POST['contact'] ?? '';
             $password = $_POST['new_password'] ?? '';
-            
+
             if (!empty($user_id) && !empty($name) && !empty($contact) && !empty($password)) {
                 // Check if user already exists
                 $check = "SELECT u_id FROM user WHERE u_id = ? OR contact = ?";
                 $stmt = $conn->prepare($check);
                 $stmt->bind_param("ss", $user_id, $contact);
                 $stmt->execute();
-                
+
                 if ($stmt->get_result()->num_rows > 0) {
                     $error = 'User ID or contact already exists';
                 } else {
+                    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
                     $insert = "INSERT INTO user (u_id, name, contact, password) VALUES (?, ?, ?, ?)";
                     $stmt = $conn->prepare($insert);
-                    $stmt->bind_param("ssss", $user_id, $name, $contact, $password);
-                    
+                    $stmt->bind_param("ssss", $user_id, $name, $contact, $hashed_password);
+
                     if ($stmt->execute()) {
                         $_SESSION['success'] = 'Account created successfully! Please login.';
                         $tab = 'login';

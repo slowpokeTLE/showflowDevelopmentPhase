@@ -10,21 +10,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'] ?? '';
     
     if (!empty($manager_id) && !empty($password)) {
-        $query = "SELECT m_id, name, t_id FROM manager WHERE m_id = ? AND password = ?";
+        $query = "SELECT m_id, manager_name, t_id, password FROM manager WHERE m_id = ?";
         $stmt = $conn->prepare($query);
-        $stmt->bind_param("ss", $manager_id, $password);
+        $stmt->bind_param("s", $manager_id);
         $stmt->execute();
         $result = $stmt->get_result();
-        
+
         if ($result->num_rows > 0) {
             $manager = $result->fetch_assoc();
-            setUserSession(ROLE_MANAGER, $manager['m_id'], [
-                'm_id' => $manager['m_id'],
-                't_id' => $manager['t_id'],
-                'name' => $manager['name']
-            ]);
-            header('Location: manager-dashboard.php');
-            exit();
+            if (password_verify($password, $manager['password'])) {
+                setUserSession(ROLE_MANAGER, $manager['m_id'], [
+                    'm_id' => $manager['m_id'],
+                    't_id' => $manager['t_id'],
+                    'name' => $manager['manager_name']
+                ]);
+                header('Location: manager-dashboard.php');
+                exit();
+            } else {
+                $error = 'Invalid manager ID or password';
+            }
         } else {
             $error = 'Invalid manager ID or password';
         }
